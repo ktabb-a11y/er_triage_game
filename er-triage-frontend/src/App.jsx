@@ -184,13 +184,20 @@ export default function App() {
 
   // --- END GAME SCOREBOARD ---
   if (endGameStats) {
+    const isNegative = endGameStats.totalPoints < 0;
+    
     return (
       <div className="flex flex-col items-center min-h-screen bg-slate-900 text-white p-6 pt-12">
         <h1 className="text-5xl font-black text-blue-400 mb-8 uppercase tracking-widest text-center">Shift Over</h1>
         <div className="w-full max-w-md bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-2xl flex flex-col gap-6">
           <div className="text-center p-4 bg-slate-900 rounded-xl">
-            <h3 className="text-slate-400 font-bold uppercase tracking-widest text-sm mb-1">Total Points</h3>
-            <p className="text-6xl font-black text-green-400">{endGameStats.totalPoints}</p>
+            <h3 className="text-slate-400 font-bold uppercase tracking-widest text-sm mb-1">Total Score</h3>
+            <p className={`text-6xl font-black ${isNegative ? 'text-red-500' : 'text-green-400'}`}>
+              {endGameStats.totalPoints}
+            </p>
+            <p className="text-slate-500 text-xs font-bold mt-2 uppercase tracking-wider">
+              (-200 pts per patient lost)
+            </p>
           </div>
           <div className="flex justify-between gap-4">
              <div className="flex-1 text-center p-4 bg-slate-900 rounded-xl">

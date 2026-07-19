@@ -75,14 +75,17 @@ function triggerEndGame(io, gameName) {
   if (game.intervals.tick) clearInterval(game.intervals.tick);
   if (game.intervals.end) clearTimeout(game.intervals.end);
 
-  const totalPoints = Object.values(game.state.players).reduce((sum, p) => sum + (p.score || 0), 0);
+  // --- UPDATED: Calculate total score with death penalties ---
+  const doctorPoints = Object.values(game.state.players).reduce((sum, p) => sum + (p.score || 0), 0);
+  const deathPenalty = game.state.stats.deaths * 200;
+  const totalPoints = doctorPoints - deathPenalty;
 
   io.to(gameName).emit('gameEnded', {
     stats: game.state.stats,
-    totalPoints: totalPoints,
+    totalPoints: totalPoints, // Send the new penalized total
     players: game.state.players
   });
-  console.log(`🛑 Game [${gameName}] Ended.`);
+  console.log(`🛑 Game [${gameName}] Ended. Score: ${totalPoints}`);
 }
 
 io.on('connection', (socket) => {
