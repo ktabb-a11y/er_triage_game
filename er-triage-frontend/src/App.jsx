@@ -232,17 +232,39 @@ export default function App() {
   // --- WAITING ROOM ---
   if (!gameState?.isGameRunning) {
     return (
-      <div className="flex flex-col items-center min-h-screen bg-slate-900 text-white p-4">
+      <div className="flex flex-col items-center min-h-screen bg-slate-900 text-white p-4 pb-12">
         <h2 className="text-2xl font-bold mt-4">Room: {gameState.gameName}</h2>
         <p className="text-slate-400 mt-2">Players connected: {allPlayers.length}</p>
         <p className="text-slate-500 font-mono text-xs mt-1">My ID: {myPlayerId}</p>
         
         {myPlayerData?.role && myPlayerData.role !== 'unassigned' && (
-          <div className="mt-6 text-xl bg-slate-800 p-4 rounded-xl border border-slate-700">Your Role: <span className="font-bold text-yellow-400 uppercase">{myPlayerData.role}</span></div>
+          <div className="mt-6 text-xl bg-slate-800 p-4 rounded-xl border border-slate-700">
+            Your Role: <span className="font-bold text-yellow-400 uppercase">{myPlayerData.role}</span>
+          </div>
         )}
+
+        <div className="mt-8 w-full max-w-sm bg-slate-800/80 p-5 rounded-xl border border-blue-900 shadow-lg">
+          <h3 className="text-blue-400 font-bold uppercase tracking-widest text-sm mb-3 border-b border-slate-700 pb-2">
+            📋 How to Play
+          </h3>
+          <ul className="text-sm text-slate-300 space-y-3">
+            <li>
+              <strong className="text-orange-400">Patients:</strong> You will receive an ailment and must find a doctor to treat you by scanning your QR code before you flatline! Your health drops over time (Level 20 down to 1).
+            </li>
+            <li>
+              <strong className="text-blue-400">Doctors:</strong> Treat patients by scanning the patient's QR code. Keep your device awake while the surgery timer ticks down, and don't let anyone die!
+            </li>
+            <li>
+              <strong className="text-green-400">Scoring:</strong> Doctors earn points for completing treatments.
+            </li>
+            <li>
+              <strong className="text-red-400">Penalties:</strong> The Total Score will drop by <strong>200 points</strong> for every patient who dies. Prioritize emergencies!
+            </li>
+          </ul>
+        </div>
         
         {isHost ? (
-          <div className="mt-6 border-2 border-purple-600 bg-purple-900/20 p-6 rounded-xl flex flex-col gap-4 w-full max-w-sm">
+          <div className="mt-8 border-2 border-purple-600 bg-purple-900/20 p-6 rounded-xl flex flex-col gap-4 w-full max-w-sm">
             <h3 className="text-lg text-purple-300 text-center uppercase tracking-widest font-bold">Host Controls</h3>
             
             <div className="flex items-center justify-between bg-slate-900/80 p-3 rounded-lg border border-slate-700">
