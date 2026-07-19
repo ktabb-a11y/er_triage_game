@@ -211,6 +211,11 @@ io.on('connection', (socket) => {
     const game = games[gameName];
     if (!game || socket.id !== game.state.hostId) return;
 
+    const hasUnassigned = Object.values(game.state.players).some(p => p.role === 'unassigned');
+    if (hasUnassigned) {
+      return socket.emit('errorMsg', 'Cannot start the game. All players must have a role assigned!');
+    }
+
     game.state.isGameRunning = true;
     game.state.stats = { deaths: 0, saved: 0 };
     

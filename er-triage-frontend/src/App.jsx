@@ -177,6 +177,7 @@ export default function App() {
   const myPlayerData = gameState?.players ? Object.values(gameState.players).find(p => p.id === myPlayerId) : null;
   const isHost = gameState?.hostId === myPlayerId;
   const allPlayers = Object.values(gameState?.players || {});
+  const hasUnassignedPlayers = allPlayers.some(p => p.role === 'unassigned');
 
   // --- END GAME SCOREBOARD ---
   if (endGameStats) {
@@ -245,8 +246,26 @@ export default function App() {
                 ))}
               </ul>
             </div>
-            <button className="bg-purple-600 hover:bg-purple-500 px-4 py-3 rounded font-bold transition-colors" onClick={() => socket.emit('assignRoles')}>1. Assign Roles</button>
-            <button className="bg-green-600 hover:bg-green-500 px-4 py-3 rounded font-bold transition-colors" onClick={() => socket.emit('startGame')}>2. Start Game</button>
+            <button 
+              className="bg-purple-600 hover:bg-purple-500 px-4 py-3 rounded font-bold transition-colors" 
+              onClick={() => socket.emit('assignRoles')}
+            >
+              1. Assign Roles
+            </button>
+            
+            {/* UPDATED: Start Game button with validation */}
+            <button 
+              className={`px-4 py-3 rounded font-bold transition-colors ${hasUnassignedPlayers ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-green-600 hover:bg-green-500 text-white'}`} 
+              onClick={() => {
+                if (hasUnassignedPlayers) {
+                  alert("You must assign roles to all players before starting!");
+                } else {
+                  socket.emit('startGame');
+                }
+              }}
+            >
+              2. Start Game
+            </button>
           </div>
         ) : (
           <div className="mt-12 flex flex-col items-center">
