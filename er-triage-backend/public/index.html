@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ER Triage - Test Client</title>
+    <!-- Import the Socket.IO client library -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        button { padding: 10px; margin: 5px; cursor: pointer; }
+        pre { background: #f4f4f4; padding: 15px; border-radius: 5px; max-height: 400px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <h2>🏥 ER Triage - Test Phone</h2>
+    
+    <div>
+        <input type="text" id="playerName" placeholder="Enter Player Name">
+        <button onclick="joinGame()">Join Lobby</button>
+    </div>
+    
+    <hr>
+    
+    <h3>Host Controls</h3>
+    <button onclick="assignRoles()">1. Assign Roles</button>
+    <button onclick="startGame()">2. Start Game</button>
+    <button onclick="endGame()">Stop Game</button>
+
+    <hr>
+    
+    <h3>Doctor Controls (Pretend Scanner)</h3>
+    <input type="text" id="patientIdInput" placeholder="Enter Patient's Socket ID">
+    <button onclick="scanPatient()">Scan QR & Treat</button>
+    
+    <hr>
+    
+    <h3>Server Logs & Game State</h3>
+    <pre id="logs">Waiting for server events...</pre>
+
+    <script>
+        // Connect to the local server
+        const socket = io(); 
+        const logsBox = document.getElementById('logs');
+
+        // Helper function to print data to the screen
+        function logEvent(eventName, data) {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `\n\n[${timestamp}] 🟢 ${eventName}:\n${JSON.stringify(data, null, 2)}`;
+            logsBox.innerHTML = logEntry + logsBox.innerHTML;
+        }
+
+        // --- LISTENERS: Receiving data from the server ---
+        socket.on('updatePlayers', (data) => logEvent('Player Joined/Left', data));
+        socket.on('rolesAssigned', (data) => logEvent('Roles Assigned', data));
+        socket.on('gameStarted', (data) => logEvent('Game Started', data));
+        socket.on('tickUpdate', (data) => logEvent('Game Tick (Someone worsened!)', data));
+        socket.on('gameEnded', (data) => logEvent('Game Ended', data));
+        socket.on('errorMsg', (data) => alert('Error: ' + data));
+
+        // --- EMITTERS: Sending actions to the server ---
+        function joinGame() {
+            const name = document.getElementById('playerName').value || 'Anonymous';
+            socket.emit('joinGame', name);
+        }
+
+        function assignRoles() { socket.emit('assignRoles'); }
+        function startGame() { socket.emit('startGame'); }
+        function endGame() { socket.emit('endGame'); }
+
+        // --- NEW LISTENERS FOR TREATMENT ---
+        socket.on('treatmentStarted', (data) => logEvent('Treatment Started (Countdown...)', data));
+        socket.on('beingTreated', (data) => logEvent('Someone is treating you!', data));
+        socket.on('treatmentComplete', (data) => logEvent('Patient Cured! Points earned.', data));
+        socket.on('cured', (data) => logEvent('You were cured! New ailment assigned.', data));
+        socket.on('scoreUpdate', (data) => logEvent('Scores Updated', data));
+
+        // --- NEW EMITTER FOR SCANNING ---
+        function scanPatient() {
+            const patientId = document.getElementById('patientIdInput').value;
+            if (patientId) {
+                socket.emit('startTreatment', patientId);
+            } else {
+                alert("Please paste a patient's socket ID first!");
+            }
+        }
+    </script>
+</body>
+</html>
