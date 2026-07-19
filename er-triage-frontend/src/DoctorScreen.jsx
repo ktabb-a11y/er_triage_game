@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Scanner } from '@yudiel/react-qr-scanner';
+import { playSuccess } from './audio';
 
 export default function DoctorScreen({ socket, player }) {
   const [treatmentStatus, setTreatmentStatus] = useState('idle'); // idle, treating, success
@@ -15,6 +16,7 @@ export default function DoctorScreen({ socket, player }) {
 
     socket.on('treatmentComplete', (data) => {
       if (data) {
+        playSuccess();
         setPointsJustEarned(data.pointsEarned);
         setTreatmentStatus('success');
         setTimeout(() => setTreatmentStatus('idle'), 3000);

@@ -1,5 +1,6 @@
 import QRCode from 'react-qr-code';
 import { useState, useEffect } from 'react';
+import { playHeartbeat, playFlatline, stopAudio } from './audio';
 
 export default function PatientScreen({ socket, player }) {
   const ailment = player.currentAilment;
@@ -25,6 +26,19 @@ export default function PatientScreen({ socket, player }) {
       return () => clearInterval(timer);
     }
   }, [player.isBeingTreated, player.treatmentEndTime]);
+
+  useEffect(() => {
+    if (!ailment) {
+      stopAudio(); // Stop sound if waiting/cured
+    } else if (ailment.statusLevel === 0) {
+      playFlatline(); // Beep on death
+    } else if (ailment.statusLevel > 0) {
+      playHeartbeat(ailment.statusLevel); // Thump based on health
+    }
+
+    // Cleanup if the component unmounts
+    return () => stopAudio();
+  }, [ailment?.statusLevel]);
 
   if (!ailment && player.respawnTime) {
     return (

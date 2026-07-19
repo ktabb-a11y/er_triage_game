@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { io } from 'socket.io-client';
 import PatientScreen from './PatientScreen';
 import DoctorScreen from './DoctorScreen';
+import { initAudio } from './audio';
 
 const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
 const socket = io(backendUrl);
@@ -85,6 +86,7 @@ export default function App() {
 
   // --- ACTIONS ---
   const handleCreateGame = () => {
+    initAudio();
     if (playerName.trim() && gameNameInput.trim()) {
       socket.emit('createGame', { playerName, gameName: gameNameInput });
     }
@@ -97,6 +99,7 @@ export default function App() {
   };
 
   const fetchGamesAndGoToJoin = () => {
+    initAudio();
     if (!playerName.trim()) return alert("Please enter your name first!");
     socket.emit('getAvailableGames');
     setViewMode('join');
