@@ -6,11 +6,26 @@ let flatlineOsc = null;
 // Browsers require a user action (like a click) to unlock audio.
 export const initAudio = () => {
   if (!audioCtx) {
+    // webkitAudioContext is required for older iOS versions
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   }
+  
   if (audioCtx.state === 'suspended') {
     audioCtx.resume();
   }
+
+  // --- NEW: The iOS Silent Unlock Trick ---
+  // Play a split-second of complete silence to permanently unlock the audio engine
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  
+  gain.gain.value = 0; // 100% Silent
+  
+  osc.start(audioCtx.currentTime);
+  osc.stop(audioCtx.currentTime + 0.001);
 };
 
 export const stopAudio = () => {
@@ -26,6 +41,7 @@ export const stopAudio = () => {
 
 export const playSuccess = () => {
   if (!audioCtx) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume();
   
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
@@ -46,6 +62,7 @@ export const playSuccess = () => {
 
 export const playHeartbeat = (statusLevel) => {
   if (!audioCtx) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume();
   stopAudio(); 
   
   const speedMs = Math.max(400, statusLevel * 60);
@@ -77,6 +94,7 @@ export const playHeartbeat = (statusLevel) => {
 // --- NEW: Softer, 3-Second Flatline ---
 export const playFlatline = () => {
   if (!audioCtx) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume();
   stopAudio();
   
   flatlineOsc = audioCtx.createOscillator();
