@@ -137,7 +137,7 @@ io.on('connection', (socket) => {
         gameName: gameName,
         players: {},
         isGameRunning: false,
-        settings: { durationMinutes: 3 },
+        settings: { durationMinutes: 3, doctorCount: 1 },
         stats: { deaths: 0, saved: 0 },
         endTime: null
       },
@@ -183,6 +183,21 @@ io.on('connection', (socket) => {
     io.to(gameName).emit('settingsUpdated', games[gameName].state.settings);
   });
 
+  socket.on('updateDoctorCount', (count) => {
+    const gameName = socketRooms[socket.id];
+    if (!games[gameName] || socket.id !== games[gameName].state.hostId) return;
+    
+    const game = games[gameName];
+    const totalPlayers = Object.keys(game.state.players).length;
+    const maxDoctors = Math.max(1, totalPlayers - 1); // At least 1 patient remains
+    
+    let validCount = parseInt(count) || 1;
+    validCount = Math.max(1, Math.min(validCount, maxDoctors)); // Keep within safe bounds
+    
+    game.state.settings.doctorCount = validCount;
+    io.to(gameName).emit('settingsUpdated', game.state.settings);
+  });
+
   socket.on('assignRoles', () => {
     const gameName = socketRooms[socket.id];
     const game = games[gameName];
@@ -192,7 +207,11 @@ io.on('connection', (socket) => {
     if (playerIds.length < 2) return socket.emit('errorMsg', 'Not enough players.');
     
     shuffleArray(playerIds);
-    const numDoctors = Math.max(1, Math.floor(playerIds.length * 0.20));
+    
+    // --- UPDATED: Use the host's custom doctor count ---
+    let numDoctors = game.state.settings.doctorCount || 1;
+    // Safety check just in case players left the lobby after the count was set
+    numDoctors = Math.max(1, Math.min(numDoctors, playerIds.length - 1));
 
     playerIds.forEach((id, index) => {
       let player = game.state.players[id];

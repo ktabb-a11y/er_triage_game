@@ -234,10 +234,25 @@ export default function App() {
         {isHost ? (
           <div className="mt-6 border-2 border-purple-600 bg-purple-900/20 p-6 rounded-xl flex flex-col gap-4 w-full max-w-sm">
             <h3 className="text-lg text-purple-300 text-center uppercase tracking-widest font-bold">Host Controls</h3>
+            
             <div className="flex items-center justify-between bg-slate-900/80 p-3 rounded-lg border border-slate-700">
               <label className="text-sm font-bold text-slate-300">Round Duration (mins)</label>
               <input type="number" min="1" max="15" value={gameState.settings.durationMinutes} onChange={(e) => socket.emit('updateDuration', parseInt(e.target.value) || 3)} className="w-16 bg-slate-700 text-white rounded p-1 text-center font-bold"/>
             </div>
+
+            {/* --- NEW: Doctor Count Setting --- */}
+            <div className="flex items-center justify-between bg-slate-900/80 p-3 rounded-lg border border-slate-700">
+              <label className="text-sm font-bold text-slate-300">Number of Doctors</label>
+              <input 
+                type="number" 
+                min="1" 
+                max={Math.max(1, allPlayers.length - 1)} 
+                value={gameState.settings.doctorCount || 1} 
+                onChange={(e) => socket.emit('updateDoctorCount', parseInt(e.target.value) || 1)} 
+                className="w-16 bg-slate-700 text-white rounded p-1 text-center font-bold"
+              />
+            </div>
+            
             <div className="bg-slate-900/80 rounded-lg p-3 max-h-48 overflow-y-auto border border-slate-700">
               <h4 className="text-xs text-slate-400 mb-2 font-bold uppercase tracking-wider border-b border-slate-700 pb-1">Lobby Roster</h4>
               <ul className="space-y-2 text-sm">
@@ -246,14 +261,8 @@ export default function App() {
                 ))}
               </ul>
             </div>
-            <button 
-              className="bg-purple-600 hover:bg-purple-500 px-4 py-3 rounded font-bold transition-colors" 
-              onClick={() => socket.emit('assignRoles')}
-            >
-              1. Assign Roles
-            </button>
             
-            {/* UPDATED: Start Game button with validation */}
+            <button className="bg-purple-600 hover:bg-purple-500 px-4 py-3 rounded font-bold transition-colors" onClick={() => socket.emit('assignRoles')}>1. Assign Roles</button>
             <button 
               className={`px-4 py-3 rounded font-bold transition-colors ${hasUnassignedPlayers ? 'bg-slate-700 text-slate-500 cursor-not-allowed' : 'bg-green-600 hover:bg-green-500 text-white'}`} 
               onClick={() => {
