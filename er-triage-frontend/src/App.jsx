@@ -28,20 +28,48 @@ const GlobalTimer = ({ endTime }) => {
   );
 };
 
+// --- NEW: Persistent ID Generator ---
+const getOrCreatePlayerId = () => {
+  let id = localStorage.getItem('triage_playerId');
+  if (!id) {
+    id = Math.random().toString(36).substring(2, 10); 
+    localStorage.setItem('triage_playerId', id);
+  }
+  return id;
+};
+
 export default function App() {
-  const [playerName, setPlayerName] = useState('');
-  const [gameNameInput, setGameNameInput] = useState('');
-  
   const [viewMode, setViewMode] = useState('menu'); 
   const [availableGames, setAvailableGames] = useState([]);
-  
   const [gameState, setGameState] = useState(null);
-  const [myPlayerId, setMyPlayerId] = useState(null);
   const [endGameStats, setEndGameStats] = useState(null); 
+  
+  // --- NEW: Load saved credentials from Local Storage ---
+  const [myPlayerId] = useState(getOrCreatePlayerId());
+  const [playerName, setPlayerName] = useState(localStorage.getItem('triage_playerName') || '');
+  const [gameNameInput, setGameNameInput] = useState(localStorage.getItem('triage_gameName') || '');
+
+  // --- NEW: Auto-Rejoin Logic ---
+  useEffect(() => {
+    const handleConnect = () => {
+      const savedGame = localStorage.getItem('triage_gameName');
+      const savedName = localStorage.getItem('triage_playerName');
+      if (savedGame && savedName) {
+        socket.emit('rejoinGame', { 
+          gameName: savedGame, 
+          playerName: savedName, 
+          playerId: myPlayerId 
+        });
+      }
+    };
+
+    if (socket.connected) handleConnect();
+
+    socket.on('connect', handleConnect);
+    return () => socket.off('connect', handleConnect);
+  }, [myPlayerId]);
 
   useEffect(() => {
-    socket.on('connect', () => setMyPlayerId(socket.id));
-    
     socket.on('availableGamesList', (gamesList) => setAvailableGames(gamesList));
 
     socket.on('joinedLobby', (state) => {
@@ -53,7 +81,13 @@ export default function App() {
     socket.on('updatePlayers', (players) => setGameState(prev => ({ ...prev, players })));
     socket.on('rolesAssigned', (players) => setGameState(prev => ({ ...prev, players })));
     socket.on('settingsUpdated', (settings) => setGameState(prev => ({ ...prev, settings })));
-    socket.on('gameStarted', (state) => setGameState(state));
+    
+    // --- UPDATED: Ensure gameStarted also hides the menu if rejoining mid-game ---
+    socket.on('gameStarted', (state) => {
+      setGameState(state);
+      setViewMode('lobby'); 
+    });
+    
     socket.on('tickUpdate', (state) => setGameState(state));
     socket.on('scoreUpdate', (players) => setGameState(prev => ({ ...prev, players })));
     
@@ -71,7 +105,6 @@ export default function App() {
       });
     });
 
-    // --- NEW: Handle the room being destroyed ---
     socket.on('gameDestroyed', (msg) => {
       alert(msg);
       setGameState(null);
@@ -88,13 +121,18 @@ export default function App() {
   const handleCreateGame = () => {
     initAudio();
     if (playerName.trim() && gameNameInput.trim()) {
-      socket.emit('createGame', { playerName, gameName: gameNameInput });
+      localStorage.setItem('triage_playerName', playerName);
+      localStorage.setItem('triage_gameName', gameNameInput);
+      socket.emit('createGame', { playerName, gameName: gameNameInput, playerId: myPlayerId });
     }
   };
 
   const handleJoinSpecificGame = (selectedGame) => {
+    initAudio();
     if (playerName.trim()) {
-      socket.emit('joinGame', { playerName, gameName: selectedGame });
+      localStorage.setItem('triage_playerName', playerName);
+      localStorage.setItem('triage_gameName', selectedGame);
+      socket.emit('joinGame', { playerName, gameName: selectedGame, playerId: myPlayerId });
     }
   };
 
@@ -272,7 +310,6 @@ export default function App() {
               <input type="number" min="1" max="15" value={gameState.settings.durationMinutes} onChange={(e) => socket.emit('updateDuration', parseInt(e.target.value) || 3)} className="w-16 bg-slate-700 text-white rounded p-1 text-center font-bold"/>
             </div>
 
-            {/* --- NEW: Doctor Count Setting --- */}
             <div className="flex items-center justify-between bg-slate-900/80 p-3 rounded-lg border border-slate-700">
               <label className="text-sm font-bold text-slate-300">Number of Doctors</label>
               <input 
@@ -315,7 +352,6 @@ export default function App() {
           </div>
         )}
 
-        {/* --- NEW: LEAVE ROOM BUTTON --- */}
         <button 
           onClick={handleLeaveLobby} 
           className="mt-12 text-slate-500 hover:text-slate-300 underline font-bold"

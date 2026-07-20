@@ -12,6 +12,7 @@ const io = new Server(server, { cors: { origin: "*", methods: ["GET", "POST"] } 
 
 const games = {}; 
 const socketRooms = {}; 
+const socketPlayerIds = {}; // --- NEW: Maps socket.id to persistent playerId ---
 
 const ailmentsDB = [
   // --- LEVELS 17-20: MINOR (Times: 3-4s | Chance: 0.2 - 0.25) ---
@@ -75,55 +76,50 @@ function triggerEndGame(io, gameName) {
   if (game.intervals.tick) clearInterval(game.intervals.tick);
   if (game.intervals.end) clearTimeout(game.intervals.end);
 
-  // --- UPDATED: Calculate total score with death penalties ---
   const doctorPoints = Object.values(game.state.players).reduce((sum, p) => sum + (p.score || 0), 0);
   const deathPenalty = game.state.stats.deaths * 200;
   const totalPoints = doctorPoints - deathPenalty;
 
   io.to(gameName).emit('gameEnded', {
     stats: game.state.stats,
-    totalPoints: totalPoints, // Send the new penalized total
+    totalPoints: totalPoints, 
     players: game.state.players
   });
   console.log(`🛑 Game [${gameName}] Ended. Score: ${totalPoints}`);
 }
 
 io.on('connection', (socket) => {
-  console.log(`🟢 Player connected: ${socket.id}`);
+  console.log(`📡 Player connected: ${socket.id}`);
 
-  // --- NEW: Centralized Leave Logic ---
+  // --- UPDATED: Uses persistent playerId ---
   function handlePlayerLeaving(socket) {
     const gameName = socketRooms[socket.id];
+    const playerId = socketPlayerIds[socket.id];
     if (!gameName || !games[gameName]) return;
 
     const game = games[gameName];
 
-    if (game.state.hostId === socket.id) {
-      // THE HOST LEFT! Destroy the room.
+    if (game.state.hostId === playerId) {
       console.log(`💥 Room [${gameName}] destroyed because the host left/disconnected.`);
       
-      // Tell everyone in the room to go back to the menu
       io.to(gameName).emit('gameDestroyed', 'The host disconnected. The game has been closed.');
       
-      // Clear any running timers
       if (game.intervals.tick) clearInterval(game.intervals.tick);
       if (game.intervals.end) clearTimeout(game.intervals.end);
       Object.values(game.intervals.treatments).forEach(timer => clearTimeout(timer));
 
-      // Force everyone out of the socket room
       io.socketsLeave(gameName); 
       delete games[gameName];
       
-      // Update the lobby list for anyone looking for games
       io.emit('availableGamesList', Object.keys(games).filter(name => !games[name].state.isGameRunning));
     } else {
-      // A REGULAR PLAYER LEFT
-      delete game.state.players[socket.id];
+      delete game.state.players[playerId];
       socket.leave(gameName);
       io.to(gameName).emit('updatePlayers', Object.values(game.state.players));
       console.log(`👋 Player left room: [${gameName}]`);
     }
     delete socketRooms[socket.id];
+    delete socketPlayerIds[socket.id];
   }
 
   socket.on('getAvailableGames', () => {
@@ -131,12 +127,12 @@ io.on('connection', (socket) => {
     socket.emit('availableGamesList', available);
   });
 
-  socket.on('createGame', ({ playerName, gameName }) => {
+  socket.on('createGame', ({ playerName, gameName, playerId }) => {
     if (games[gameName]) return socket.emit('errorMsg', 'A game with that name already exists!');
 
     games[gameName] = {
       state: {
-        hostId: socket.id,
+        hostId: playerId, // Host uses persistent ID
         gameName: gameName,
         players: {},
         isGameRunning: false,
@@ -148,10 +144,11 @@ io.on('connection', (socket) => {
     };
 
     const game = games[gameName];
-    game.state.players[socket.id] = { id: socket.id, name: playerName, role: 'unassigned', score: 0, currentAilment: null, isBeingTreated: false, treatedBy: null, respawnTime: null };
+    game.state.players[playerId] = { id: playerId, name: playerName, role: 'unassigned', score: 0, currentAilment: null, isBeingTreated: false, treatedBy: null, respawnTime: null, connected: true };
     
     socket.join(gameName);
     socketRooms[socket.id] = gameName;
+    socketPlayerIds[socket.id] = playerId;
 
     socket.emit('joinedLobby', game.state);
     io.to(gameName).emit('updatePlayers', Object.values(game.state.players));
@@ -159,21 +156,48 @@ io.on('connection', (socket) => {
     io.emit('availableGamesList', Object.keys(games).filter(name => !games[name].state.isGameRunning));
   });
 
-  socket.on('joinGame', ({ playerName, gameName }) => {
+  socket.on('joinGame', ({ playerName, gameName, playerId }) => {
     const game = games[gameName];
     if (!game) return socket.emit('errorMsg', 'Game does not exist!');
-    if (game.state.isGameRunning) return socket.emit('errorMsg', 'Game is already in progress!');
+    if (game.state.isGameRunning && !game.state.players[playerId]) return socket.emit('errorMsg', 'Game is already in progress!');
 
-    game.state.players[socket.id] = { id: socket.id, name: playerName, role: 'unassigned', score: 0, currentAilment: null, isBeingTreated: false, treatedBy: null, respawnTime: null };
+    if (!game.state.players[playerId]) {
+      game.state.players[playerId] = { id: playerId, name: playerName, role: 'unassigned', score: 0, currentAilment: null, isBeingTreated: false, treatedBy: null, respawnTime: null, connected: true };
+    } else {
+      game.state.players[playerId].connected = true;
+      game.state.players[playerId].name = playerName;
+    }
     
     socket.join(gameName);
     socketRooms[socket.id] = gameName;
+    socketPlayerIds[socket.id] = playerId;
 
     socket.emit('joinedLobby', game.state);
     io.to(gameName).emit('updatePlayers', Object.values(game.state.players));
   });
 
-  // --- NEW: Explicit Leave Event ---
+  // --- NEW: Rejoin logic ---
+  socket.on('rejoinGame', ({ gameName, playerName, playerId }) => {
+    const game = games[gameName];
+    if (game && game.state.players[playerId]) {
+      socket.join(gameName);
+      socketRooms[socket.id] = gameName;
+      socketPlayerIds[socket.id] = playerId;
+      
+      game.state.players[playerId].connected = true;
+      game.state.players[playerId].name = playerName;
+      
+      if (!game.state.isGameRunning) {
+         socket.emit('joinedLobby', game.state);
+      } else {
+         socket.emit('gameStarted', game.state);
+         socket.emit('rolesAssigned', game.state.players); 
+      }
+      
+      io.to(gameName).emit('updatePlayers', Object.values(game.state.players));
+    }
+  });
+
   socket.on('leaveGame', () => {
     handlePlayerLeaving(socket);
   });
@@ -181,21 +205,23 @@ io.on('connection', (socket) => {
   // --- GAME LOGIC ---
   socket.on('updateDuration', (minutes) => {
     const gameName = socketRooms[socket.id];
-    if (!games[gameName] || socket.id !== games[gameName].state.hostId) return;
+    const playerId = socketPlayerIds[socket.id];
+    if (!games[gameName] || playerId !== games[gameName].state.hostId) return;
     games[gameName].state.settings.durationMinutes = minutes;
     io.to(gameName).emit('settingsUpdated', games[gameName].state.settings);
   });
 
   socket.on('updateDoctorCount', (count) => {
     const gameName = socketRooms[socket.id];
-    if (!games[gameName] || socket.id !== games[gameName].state.hostId) return;
+    const playerId = socketPlayerIds[socket.id];
+    if (!games[gameName] || playerId !== games[gameName].state.hostId) return;
     
     const game = games[gameName];
     const totalPlayers = Object.keys(game.state.players).length;
-    const maxDoctors = Math.max(1, totalPlayers - 1); // At least 1 patient remains
+    const maxDoctors = Math.max(1, totalPlayers - 1); 
     
     let validCount = parseInt(count) || 1;
-    validCount = Math.max(1, Math.min(validCount, maxDoctors)); // Keep within safe bounds
+    validCount = Math.max(1, Math.min(validCount, maxDoctors)); 
     
     game.state.settings.doctorCount = validCount;
     io.to(gameName).emit('settingsUpdated', game.state.settings);
@@ -203,17 +229,16 @@ io.on('connection', (socket) => {
 
   socket.on('assignRoles', () => {
     const gameName = socketRooms[socket.id];
+    const playerId = socketPlayerIds[socket.id];
     const game = games[gameName];
-    if (!game || socket.id !== game.state.hostId) return;
+    if (!game || playerId !== game.state.hostId) return;
     
     const playerIds = Object.keys(game.state.players);
     if (playerIds.length < 2) return socket.emit('errorMsg', 'Not enough players.');
     
     shuffleArray(playerIds);
     
-    // --- UPDATED: Use the host's custom doctor count ---
     let numDoctors = game.state.settings.doctorCount || 1;
-    // Safety check just in case players left the lobby after the count was set
     numDoctors = Math.max(1, Math.min(numDoctors, playerIds.length - 1));
 
     playerIds.forEach((id, index) => {
@@ -230,8 +255,9 @@ io.on('connection', (socket) => {
 
   socket.on('startGame', () => {
     const gameName = socketRooms[socket.id];
+    const playerId = socketPlayerIds[socket.id];
     const game = games[gameName];
-    if (!game || socket.id !== game.state.hostId) return;
+    if (!game || playerId !== game.state.hostId) return;
 
     const hasUnassigned = Object.values(game.state.players).some(p => p.role === 'unassigned');
     if (hasUnassigned) {
@@ -302,10 +328,11 @@ io.on('connection', (socket) => {
 
   socket.on('startTreatment', (patientId) => {
     const gameName = socketRooms[socket.id];
+    const playerId = socketPlayerIds[socket.id];
     const game = games[gameName];
     if (!game) return;
 
-    const doctor = game.state.players[socket.id];
+    const doctor = game.state.players[playerId];
     const patient = game.state.players[patientId];
 
     if (!doctor || doctor.role !== 'doctor') return;
@@ -352,22 +379,33 @@ io.on('connection', (socket) => {
 
   socket.on('endGameEarly', () => {
     const gameName = socketRooms[socket.id];
-    if (gameName && games[gameName].state.hostId === socket.id && games[gameName].state.isGameRunning) {
+    const playerId = socketPlayerIds[socket.id];
+    if (gameName && games[gameName] && games[gameName].state.hostId === playerId && games[gameName].state.isGameRunning) {
       triggerEndGame(io, gameName);
     }
   });
 
   socket.on('returnToLobby', () => {
     const gameName = socketRooms[socket.id];
-    if (gameName && games[gameName].state.hostId === socket.id) {
+    const playerId = socketPlayerIds[socket.id];
+    if (gameName && games[gameName] && games[gameName].state.hostId === playerId) {
       io.to(gameName).emit('returnedToLobby');
     }
   });
 
-  // --- UPDATED: Disconnect logic routes to our central handler ---
+  // --- UPDATED: Disconnect merely marks the player as inactive, preserving their logic and room ---
   socket.on('disconnect', () => {
-    console.log(`🔴 Player disconnected: ${socket.id}`);
-    handlePlayerLeaving(socket);
+    const gameName = socketRooms[socket.id];
+    const playerId = socketPlayerIds[socket.id]; 
+    const game = games[gameName];
+
+    if (game && game.state.players[playerId]) {
+      game.state.players[playerId].connected = false;
+      io.to(gameName).emit('updatePlayers', Object.values(game.state.players));
+    }
+    
+    delete socketRooms[socket.id];
+    delete socketPlayerIds[socket.id];
   });
 });
 
