@@ -46,8 +46,6 @@ export default function DoctorScreen({ socket, player }) {
     
     const text = Array.isArray(result) ? result[0].rawValue : result;
     if (text) {
-      // Send the scanned ID to the server
-      // The server will respond and flip the status to 'treating'
       socket.emit('startTreatment', text); 
     }
   };
@@ -55,7 +53,7 @@ export default function DoctorScreen({ socket, player }) {
   // STATE 1: Treating Patient
   if (treatmentStatus === 'treating') {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-blue-900 text-white p-4 text-center">
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-3rem)] bg-blue-900 text-white p-4 text-center">
         <h1 className="text-4xl font-black mb-4 uppercase tracking-widest animate-pulse">In Surgery</h1>
         <div className="text-9xl font-black my-8">{timeLeft}</div>
         <p className="text-xl font-bold text-blue-300">Keep your device awake!</p>
@@ -66,7 +64,7 @@ export default function DoctorScreen({ socket, player }) {
   // STATE 2: Success Screen
   if (treatmentStatus === 'success') {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-green-600 text-white p-4 text-center">
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-3rem)] bg-green-600 text-white p-4 text-center">
         <h1 className="text-5xl font-black mb-4 uppercase tracking-widest">Saved!</h1>
         <p className="text-3xl font-bold">+{pointsJustEarned} pts</p>
       </div>
@@ -75,19 +73,19 @@ export default function DoctorScreen({ socket, player }) {
 
   // STATE 3: Idle / Scanner Open By Default
   return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col">
+    <div className="relative flex flex-col bg-black min-h-[calc(100vh-3rem)] w-full">
       {/* HUD Overlays */}
-      <div className="absolute top-4 right-4 z-50 bg-slate-900/80 px-4 py-2 rounded-full border border-slate-700 backdrop-blur-md">
+      <div className="absolute top-4 right-4 z-40 bg-slate-900/80 px-4 py-2 rounded-full border border-slate-700 backdrop-blur-md">
         <span className="text-slate-400 text-sm font-bold uppercase tracking-wider">Score:</span> 
         <span className="text-green-400 font-black text-xl ml-2">{player.score}</span>
       </div>
 
-      <div className="absolute top-4 left-4 z-50 bg-slate-900/80 px-4 py-2 rounded-full border border-slate-700 backdrop-blur-md">
+      <div className="absolute top-4 left-4 z-40 bg-slate-900/80 px-4 py-2 rounded-full border border-slate-700 backdrop-blur-md">
         <span className="text-slate-400 text-xs font-mono font-bold">ID: {player.id}</span>
       </div>
 
-      {/* Fullscreen Camera */}
-      <div className="flex-1 relative bg-black flex items-center justify-center">
+      {/* Fullscreen Camera (Contained) */}
+      <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden">
         <Scanner 
           onScan={handleScan}
           onError={(error) => console.log(error?.message)}
@@ -95,7 +93,7 @@ export default function DoctorScreen({ socket, player }) {
         />
         
         {/* Floating Instruction */}
-        <div className="absolute bottom-12 w-full text-center pointer-events-none">
+        <div className="absolute bottom-12 w-full text-center pointer-events-none z-40">
           <div className="bg-black/60 backdrop-blur-md border border-slate-600 text-white inline-flex flex-col items-center px-8 py-4 rounded-3xl shadow-2xl">
             <span className="text-3xl mb-1">📷</span>
             <span className="font-black tracking-widest uppercase text-lg">Scan Patient QR</span>
