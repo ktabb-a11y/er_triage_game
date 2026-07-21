@@ -19,7 +19,7 @@ export default function DoctorScreen({ socket, player }) {
         playSuccess();
         setPointsJustEarned(data.pointsEarned);
         setTreatmentStatus('success');
-        setTimeout(() => setTreatmentStatus('idle'), 3000);
+        setTimeout(() => setTreatmentStatus('idle'), 1000);
       } else {
         setTreatmentStatus('idle');
       }
