@@ -45,7 +45,6 @@ export default function DoctorScreen({ socket, player }) {
     if (text) socket.emit('startTreatment', text); 
   };
 
-  // --- NEW: Handle manual code submission ---
   const handleManualSubmit = (e) => {
     e.preventDefault();
     if (manualCode.trim().length > 0) {
@@ -97,15 +96,15 @@ export default function DoctorScreen({ socket, player }) {
         <div className="absolute bottom-6 w-full px-4 z-40 flex flex-col items-center pointer-events-auto">
           <div className="bg-black/80 backdrop-blur-md border border-slate-600 text-white p-4 rounded-3xl shadow-2xl w-full max-w-sm">
             <p className="text-center text-sm font-bold tracking-widest uppercase mb-3 text-slate-300">Scan QR or Enter Code</p>
-            <form onSubmit={handleManualSubmit} className="flex gap-2">
+            <form onSubmit={handleManualSubmit} className="flex flex-col gap-3">
               <input 
                 type="number" 
                 placeholder="4-Digit Code" 
                 value={manualCode}
                 onChange={(e) => setManualCode(e.target.value)}
-                className="flex-1 bg-slate-800 border border-slate-500 rounded-xl px-4 py-3 text-center text-xl font-black tracking-widest focus:outline-none focus:border-blue-500 placeholder-slate-500"
+                className="w-full bg-slate-800 border border-slate-500 rounded-xl px-4 py-3 text-center text-xl font-black tracking-widest focus:outline-none focus:border-blue-500 placeholder-slate-500"
               />
-              <button type="submit" className="bg-blue-600 hover:bg-blue-500 px-6 py-3 rounded-xl font-bold uppercase tracking-wider">
+              <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 px-6 py-3 rounded-xl font-bold uppercase tracking-wider">
                 Treat
               </button>
             </form>
