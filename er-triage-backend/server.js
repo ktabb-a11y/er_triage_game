@@ -297,8 +297,16 @@ io.on('connection', (socket) => {
                   delete game.intervals.treatments[player.id];
                 }
                 if (player.treatedBy) {
-                  io.to(player.treatedBy).emit('errorMsg', 'Treatment failed! Patient flatlined.');
-                  io.to(player.treatedBy).emit('treatmentComplete'); 
+                  // --- THE FIX: Translate the persistent ID to the active Socket ID ---
+                  const doctorSocketId = Object.keys(socketPlayerIds).find(
+                    key => socketPlayerIds[key] === player.treatedBy
+                  );
+                  
+                  if (doctorSocketId) {
+                    io.to(doctorSocketId).emit('errorMsg', 'Treatment failed! Patient flatlined.');
+                    // Explicitly send 'null' so the frontend knows to exit the surgery screen
+                    io.to(doctorSocketId).emit('treatmentComplete', null); 
+                  }
                 }
               }
 
