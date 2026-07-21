@@ -12,7 +12,7 @@ const io = new Server(server, { cors: { origin: "*", methods: ["GET", "POST"] } 
 
 const games = {}; 
 const socketRooms = {}; 
-const socketPlayerIds = {}; // --- NEW: Maps socket.id to persistent playerId ---
+const socketPlayerIds = {}; 
 
 const ailmentsDB = [
   // --- LEVELS 17-20: MINOR (Times: 3-4s | Chance: 0.2 - 0.25) ---
@@ -57,7 +57,10 @@ const ailmentsDB = [
 ];
 
 function getRandomAilment() {
-  return JSON.parse(JSON.stringify(ailmentsDB[Math.floor(Math.random() * ailmentsDB.length)])); 
+  const ailment = JSON.parse(JSON.stringify(ailmentsDB[Math.floor(Math.random() * ailmentsDB.length)])); 
+  // Generate random 4-digit code for manual entry
+  ailment.manualCode = Math.floor(1000 + Math.random() * 9000).toString();
+  return ailment;
 }
 
 function shuffleArray(array) {
@@ -91,7 +94,6 @@ function triggerEndGame(io, gameName) {
 io.on('connection', (socket) => {
   console.log(`📡 Player connected: ${socket.id}`);
 
-  // --- UPDATED: Uses persistent playerId ---
   function handlePlayerLeaving(socket) {
     const gameName = socketRooms[socket.id];
     const playerId = socketPlayerIds[socket.id];
@@ -132,7 +134,7 @@ io.on('connection', (socket) => {
 
     games[gameName] = {
       state: {
-        hostId: playerId, // Host uses persistent ID
+        hostId: playerId, 
         gameName: gameName,
         players: {},
         isGameRunning: false,
@@ -176,7 +178,6 @@ io.on('connection', (socket) => {
     io.to(gameName).emit('updatePlayers', Object.values(game.state.players));
   });
 
-  // --- NEW: Rejoin logic ---
   socket.on('rejoinGame', ({ gameName, playerName, playerId }) => {
     const game = games[gameName];
     if (game && game.state.players[playerId]) {
@@ -193,8 +194,9 @@ io.on('connection', (socket) => {
          socket.emit('gameStarted', game.state);
          socket.emit('rolesAssigned', game.state.players); 
       }
-      
       io.to(gameName).emit('updatePlayers', Object.values(game.state.players));
+    } else {
+      socket.emit('rejoinFailed');
     }
   });
 
@@ -297,14 +299,9 @@ io.on('connection', (socket) => {
                   delete game.intervals.treatments[player.id];
                 }
                 if (player.treatedBy) {
-                  // --- THE FIX: Translate the persistent ID to the active Socket ID ---
-                  const doctorSocketId = Object.keys(socketPlayerIds).find(
-                    key => socketPlayerIds[key] === player.treatedBy
-                  );
-                  
+                  const doctorSocketId = Object.keys(socketPlayerIds).find(key => socketPlayerIds[key] === player.treatedBy);
                   if (doctorSocketId) {
                     io.to(doctorSocketId).emit('errorMsg', 'Treatment failed! Patient flatlined.');
-                    // Explicitly send 'null' so the frontend knows to exit the surgery screen
                     io.to(doctorSocketId).emit('treatmentComplete', null); 
                   }
                 }
@@ -334,17 +331,28 @@ io.on('connection', (socket) => {
     game.intervals.end = setTimeout(() => { triggerEndGame(io, gameName); }, durationMs);
   });
 
-  socket.on('startTreatment', (patientId) => {
+  socket.on('startTreatment', (identifier) => {
     const gameName = socketRooms[socket.id];
     const playerId = socketPlayerIds[socket.id];
     const game = games[gameName];
+    
+    // Ghost State safety check
     if (!game) return;
 
     const doctor = game.state.players[playerId];
-    const patient = game.state.players[patientId];
+    
+    // Try matching by QR ID first
+    let patient = game.state.players[identifier]; 
+
+    // If no patient matches the QR ID, check if it's the 4-digit manual code
+    if (!patient) {
+      patient = Object.values(game.state.players).find(
+        p => p.role === 'patient' && p.currentAilment && p.currentAilment.manualCode === identifier
+      );
+    }
 
     if (!doctor || doctor.role !== 'doctor') return;
-    if (!patient || patient.role !== 'patient') return socket.emit('errorMsg', 'Invalid patient scanned.');
+    if (!patient || patient.role !== 'patient') return socket.emit('errorMsg', 'Invalid patient or code.');
     if (patient.currentAilment.statusLevel <= 0) return socket.emit('errorMsg', 'Patient flatlined!');
     if (patient.isBeingTreated) return socket.emit('errorMsg', 'Another doctor is treating this patient!');
 
@@ -371,14 +379,14 @@ io.on('connection', (socket) => {
       patient.respawnTime = Date.now() + 10000; 
 
       socket.emit('treatmentComplete', { patientId: patient.id, pointsEarned, newScore: doctor.score });
-      io.to(gameName).emit('scoreUpdate', game.state.players); 
+      io.to(gameName).emit('scoreUpdate', Object.values(game.state.players)); 
 
       setTimeout(() => {
         if (!game.state.isGameRunning) return;
         if (!patient.currentAilment) {
           patient.currentAilment = getRandomAilment();
           patient.respawnTime = null;
-          io.to(gameName).emit('scoreUpdate', game.state.players);
+          io.to(gameName).emit('scoreUpdate', Object.values(game.state.players));
         }
       }, 10000);
 
@@ -388,6 +396,8 @@ io.on('connection', (socket) => {
   socket.on('endGameEarly', () => {
     const gameName = socketRooms[socket.id];
     const playerId = socketPlayerIds[socket.id];
+    
+    // Ghost State safety check
     if (gameName && games[gameName] && games[gameName].state.hostId === playerId && games[gameName].state.isGameRunning) {
       triggerEndGame(io, gameName);
     }
@@ -401,7 +411,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // --- UPDATED: Disconnect merely marks the player as inactive, preserving their logic and room ---
   socket.on('disconnect', () => {
     const gameName = socketRooms[socket.id];
     const playerId = socketPlayerIds[socket.id]; 

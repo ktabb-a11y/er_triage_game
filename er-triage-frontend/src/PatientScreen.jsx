@@ -84,6 +84,14 @@ export default function PatientScreen({ socket, player }) {
         <QRCode value={player.id} size={200} />
         <p className="mt-4 text-slate-400 font-mono text-xs font-bold">ID: {player.id}</p>
       </div>
+
+      {/* Add this somewhere visible below or near the QR code */}
+      <div className="mt-4 p-3 bg-slate-800 border-2 border-slate-600 rounded-xl text-center">
+        <p className="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Manual Code</p>
+        <p className="text-4xl font-black tracking-widest text-white">
+          {player.currentAilment?.manualCode}
+        </p>
+      </div>
       
       <div className="mt-8 text-center bg-black/30 p-4 rounded-lg w-full max-w-xs">
         <p className="text-lg">Status Level: <span className="font-bold text-2xl">{ailment.statusLevel}</span></p>

@@ -110,6 +110,13 @@ export default function App() {
       setGameState(null);
       setEndGameStats(null);
       setViewMode('menu');
+      localStorage.removeItem('triage_gameName'); // <-- ADD THIS LINE
+    });
+
+    socket.on('rejoinFailed', () => {
+      localStorage.removeItem('triage_gameName');
+      setGameState(null);
+      setViewMode('menu');
     });
 
     socket.on('errorMsg', (msg) => alert(msg));
@@ -148,6 +155,7 @@ export default function App() {
     setGameState(null);
     setEndGameStats(null);
     setViewMode('menu');
+    localStorage.removeItem('triage_gameName'); // <-- ADD THIS LINE
   };
 
   // --- UI: LOGIN & MENUS ---

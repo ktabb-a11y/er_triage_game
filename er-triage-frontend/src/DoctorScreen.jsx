@@ -6,6 +6,7 @@ export default function DoctorScreen({ socket, player }) {
   const [treatmentStatus, setTreatmentStatus] = useState('idle'); // idle, treating, success
   const [pointsJustEarned, setPointsJustEarned] = useState(0);
   const [timeLeft, setTimeLeft] = useState(0);
+  const [manualCode, setManualCode] = useState(''); // NEW
 
   useEffect(() => {
     socket.on('treatmentStarted', (data) => {
@@ -18,11 +19,8 @@ export default function DoctorScreen({ socket, player }) {
         playSuccess();
         setPointsJustEarned(data.pointsEarned);
         setTreatmentStatus('success');
-        
-        // Return to the live camera after 3 seconds
         setTimeout(() => setTreatmentStatus('idle'), 3000);
       } else {
-        // If data is null, the patient died, instantly return to camera
         setTreatmentStatus('idle');
       }
     });
@@ -43,14 +41,19 @@ export default function DoctorScreen({ socket, player }) {
 
   const handleScan = (result) => {
     if (!result) return;
-    
     const text = Array.isArray(result) ? result[0].rawValue : result;
-    if (text) {
-      socket.emit('startTreatment', text); 
+    if (text) socket.emit('startTreatment', text); 
+  };
+
+  // --- NEW: Handle manual code submission ---
+  const handleManualSubmit = (e) => {
+    e.preventDefault();
+    if (manualCode.trim().length > 0) {
+      socket.emit('startTreatment', manualCode.trim());
+      setManualCode('');
     }
   };
 
-  // STATE 1: Treating Patient
   if (treatmentStatus === 'treating') {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-3rem)] bg-blue-900 text-white p-4 text-center">
@@ -61,7 +64,6 @@ export default function DoctorScreen({ socket, player }) {
     );
   }
 
-  // STATE 2: Success Screen
   if (treatmentStatus === 'success') {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-3rem)] bg-green-600 text-white p-4 text-center">
@@ -71,7 +73,6 @@ export default function DoctorScreen({ socket, player }) {
     );
   }
 
-  // STATE 3: Idle / Scanner Open By Default
   return (
     <div className="relative flex flex-col bg-black min-h-[calc(100vh-3rem)] w-full">
       {/* HUD Overlays */}
@@ -84,7 +85,7 @@ export default function DoctorScreen({ socket, player }) {
         <span className="text-slate-400 text-xs font-mono font-bold">ID: {player.id}</span>
       </div>
 
-      {/* Fullscreen Camera (Contained) */}
+      {/* Fullscreen Camera */}
       <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden">
         <Scanner 
           onScan={handleScan}
@@ -92,11 +93,22 @@ export default function DoctorScreen({ socket, player }) {
           components={{ tracker: true, audio: false }}
         />
         
-        {/* Floating Instruction */}
-        <div className="absolute bottom-12 w-full text-center pointer-events-none z-40">
-          <div className="bg-black/60 backdrop-blur-md border border-slate-600 text-white inline-flex flex-col items-center px-8 py-4 rounded-3xl shadow-2xl">
-            <span className="text-3xl mb-1">📷</span>
-            <span className="font-black tracking-widest uppercase text-lg">Scan Patient QR</span>
+        {/* Floating Manual Entry UI */}
+        <div className="absolute bottom-6 w-full px-4 z-40 flex flex-col items-center pointer-events-auto">
+          <div className="bg-black/80 backdrop-blur-md border border-slate-600 text-white p-4 rounded-3xl shadow-2xl w-full max-w-sm">
+            <p className="text-center text-sm font-bold tracking-widest uppercase mb-3 text-slate-300">Scan QR or Enter Code</p>
+            <form onSubmit={handleManualSubmit} className="flex gap-2">
+              <input 
+                type="number" 
+                placeholder="4-Digit Code" 
+                value={manualCode}
+                onChange={(e) => setManualCode(e.target.value)}
+                className="flex-1 bg-slate-800 border border-slate-500 rounded-xl px-4 py-3 text-center text-xl font-black tracking-widest focus:outline-none focus:border-blue-500 placeholder-slate-500"
+              />
+              <button type="submit" className="bg-blue-600 hover:bg-blue-500 px-6 py-3 rounded-xl font-bold uppercase tracking-wider">
+                Treat
+              </button>
+            </form>
           </div>
         </div>
       </div>
