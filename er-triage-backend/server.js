@@ -138,7 +138,7 @@ io.on('connection', (socket) => {
         gameName: gameName,
         players: {},
         isGameRunning: false,
-        settings: { durationMinutes: 3, doctorCount: 1 },
+        settings: { durationMinutes: 3, doctorCount: 1, hostPlays: true },
         stats: { deaths: 0, saved: 0 },
         endTime: null
       },
@@ -213,14 +213,34 @@ io.on('connection', (socket) => {
     io.to(gameName).emit('settingsUpdated', games[gameName].state.settings);
   });
 
+  socket.on('updateHostPlays', (plays) => {
+    const gameName = socketRooms[socket.id];
+    const playerId = socketPlayerIds[socket.id];
+    if (!games[gameName] || playerId !== games[gameName].state.hostId) return;
+    
+    games[gameName].state.settings.hostPlays = plays;
+    
+    // Reset all roles so they have to re-assign with the new math
+    Object.values(games[gameName].state.players).forEach(p => p.role = 'unassigned');
+    
+    io.to(gameName).emit('updatePlayers', Object.values(games[gameName].state.players));
+    io.to(gameName).emit('settingsUpdated', games[gameName].state.settings);
+  });
+
   socket.on('updateDoctorCount', (count) => {
     const gameName = socketRooms[socket.id];
     const playerId = socketPlayerIds[socket.id];
     if (!games[gameName] || playerId !== games[gameName].state.hostId) return;
     
     const game = games[gameName];
-    const totalPlayers = Object.keys(game.state.players).length;
-    const maxDoctors = Math.max(1, totalPlayers - 1); 
+    
+    // Calculate active players (exclude host if they are spectating)
+    let activePlayerCount = Object.keys(game.state.players).length;
+    if (game.state.settings.hostPlays === false) {
+      activePlayerCount = Math.max(0, activePlayerCount - 1);
+    }
+    
+    const maxDoctors = Math.max(1, activePlayerCount - 1); 
     
     let validCount = parseInt(count) || 1;
     validCount = Math.max(1, Math.min(validCount, maxDoctors)); 
@@ -229,14 +249,27 @@ io.on('connection', (socket) => {
     io.to(gameName).emit('settingsUpdated', game.state.settings);
   });
 
-  socket.on('assignRoles', () => {
+socket.on('assignRoles', () => {
     const gameName = socketRooms[socket.id];
     const playerId = socketPlayerIds[socket.id];
     const game = games[gameName];
     if (!game || playerId !== game.state.hostId) return;
     
-    const playerIds = Object.keys(game.state.players);
-    if (playerIds.length < 2) return socket.emit('errorMsg', 'Not enough players.');
+    let playerIds = Object.keys(game.state.players);
+    
+    // --- NEW: Remove the host from the pool if they are spectating ---
+    if (game.state.settings.hostPlays === false) {
+      playerIds = playerIds.filter(id => id !== game.state.hostId);
+      
+      // Assign the host as a spectator
+      const hostPlayer = game.state.players[game.state.hostId];
+      hostPlayer.role = 'spectator';
+      hostPlayer.currentAilment = null;
+      hostPlayer.score = 0;
+    }
+    
+    // Now we check if we have enough ACTIVE players left to actually play the game
+    if (playerIds.length < 2) return socket.emit('errorMsg', 'Not enough active players. You need at least 1 Doctor and 1 Patient.');
     
     shuffleArray(playerIds);
     

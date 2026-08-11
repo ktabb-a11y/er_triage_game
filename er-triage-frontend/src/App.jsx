@@ -318,12 +318,23 @@ export default function App() {
               <input type="number" min="1" max="15" value={gameState.settings.durationMinutes} onChange={(e) => socket.emit('updateDuration', parseInt(e.target.value) || 3)} className="w-16 bg-slate-700 text-white rounded p-1 text-center font-bold"/>
             </div>
 
+            {/* --- NEW: Host Plays Toggle --- */}
+            <div className="flex items-center justify-between bg-slate-900/80 p-3 rounded-lg border border-slate-700">
+              <label className="text-sm font-bold text-slate-300">Host Plays?</label>
+              <input 
+                type="checkbox" 
+                checked={gameState.settings.hostPlays ?? true} 
+                onChange={(e) => socket.emit('updateHostPlays', e.target.checked)} 
+                className="w-5 h-5 accent-purple-600 cursor-pointer"
+              />
+            </div>
+
             <div className="flex items-center justify-between bg-slate-900/80 p-3 rounded-lg border border-slate-700">
               <label className="text-sm font-bold text-slate-300">Number of Doctors</label>
               <input 
                 type="number" 
                 min="1" 
-                max={Math.max(1, allPlayers.length - 1)} 
+                max={Math.max(1, allPlayers.length - (gameState.settings.hostPlays === false ? 2 : 1))} 
                 value={gameState.settings.doctorCount || 1} 
                 onChange={(e) => socket.emit('updateDoctorCount', parseInt(e.target.value) || 1)} 
                 className="w-16 bg-slate-700 text-white rounded p-1 text-center font-bold"
@@ -334,7 +345,15 @@ export default function App() {
               <h4 className="text-xs text-slate-400 mb-2 font-bold uppercase tracking-wider border-b border-slate-700 pb-1">Lobby Roster</h4>
               <ul className="space-y-2 text-sm">
                 {allPlayers.map(p => (
-                  <li key={p.id} className="flex justify-between items-center"><span className="font-medium">{p.name} {p.id === gameState.hostId && '👑'}</span>{p.role !== 'unassigned' && <span className={`text-xs font-bold uppercase ${p.role === 'doctor' ? 'text-blue-400' : 'text-orange-400'}`}>{p.role}</span>}</li>
+                  <li key={p.id} className="flex justify-between items-center">
+                    <span className="font-medium">{p.name} {p.id === gameState.hostId && '👑'}</span>
+                    {/* --- UPDATED: Account for spectator color --- */}
+                    {p.role !== 'unassigned' && (
+                      <span className={`text-xs font-bold uppercase ${p.role === 'doctor' ? 'text-blue-400' : p.role === 'spectator' ? 'text-slate-400' : 'text-orange-400'}`}>
+                        {p.role}
+                      </span>
+                    )}
+                  </li>
                 ))}
               </ul>
             </div>
@@ -389,31 +408,61 @@ export default function App() {
             </button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+            
+            {/* --- DOCTORS COLUMN --- */}
             <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
               <h3 className="text-lg font-bold text-blue-400 mb-3 uppercase tracking-wider border-b border-slate-700 pb-2">Doctors</h3>
               <ul className="space-y-2">
                 {allPlayers.filter(p => p.role === 'doctor').map(d => (
-                  <li key={d.id} className="flex justify-between items-center bg-slate-700/50 p-3 rounded"><span className="font-bold">{d.name} {d.id === gameState.hostId && '👑'}</span><span className="text-green-400 font-black">{d.score} pts</span></li>
+                  <li key={d.id} className="flex justify-between items-center bg-slate-700/50 p-3 rounded">
+                    <span className="font-bold">{d.name} {d.id === gameState.hostId && '👑'}</span>
+                    <span className="text-green-400 font-black">{d.score} pts</span>
+                  </li>
                 ))}
               </ul>
             </div>
+
+            {/* --- PATIENTS COLUMN --- */}
             <div className="bg-slate-800 p-4 rounded-xl border border-slate-700">
-              <h3 className="text-lg font-bold text-orange-400 mb-3 uppercase tracking-wider border-b border-slate-700 pb-2 flex justify-between"><span>Patients</span><span className="text-red-400 text-sm">Deaths: {gameState.stats.deaths}</span></h3>
+              <h3 className="text-lg font-bold text-orange-400 mb-3 uppercase tracking-wider border-b border-slate-700 pb-2 flex justify-between">
+                <span>Patients</span>
+                <span className="text-red-400 text-sm">Deaths: {gameState.stats.deaths}</span>
+              </h3>
               <ul className="space-y-2">
                 {allPlayers.filter(p => p.role === 'patient').map(p => {
-                    const status = p.currentAilment ? p.currentAilment.statusLevel : 0;
-                    const isDead = status === 0;
+                    const isWaiting = p.currentAilment === null; 
+                    const isDead = p.currentAilment && p.currentAilment.statusLevel <= 0;
+                    
+                    let rowClass = 'bg-slate-700/50';
+                    let statusDisplay = null;
+
+                    if (isDead) {
+                      rowClass = 'bg-red-900/50 text-red-300';
+                      statusDisplay = <span>💀 Flatlined</span>;
+                    } else if (isWaiting) {
+                      rowClass = 'bg-green-900/30 text-green-400';
+                      statusDisplay = <span className="animate-pulse">💚 Saved! Awaiting...</span>;
+                    } else {
+                      statusDisplay = (
+                        <>
+                          <span>Level {p.currentAilment.statusLevel}</span>
+                          {p.isBeingTreated && <span className="bg-blue-600 text-white text-[10px] px-2 py-1 rounded-full uppercase animate-pulse">In Surgery</span>}
+                        </>
+                      );
+                    }
+
                     return (
-                      <li key={p.id} className={`flex justify-between items-center p-3 rounded ${isDead ? 'bg-red-900/50 text-red-300' : 'bg-slate-700/50'}`}>
+                      <li key={p.id} className={`flex justify-between items-center p-3 rounded transition-colors duration-500 ${rowClass}`}>
                         <span className="font-bold">{p.name} {p.id === gameState.hostId && '👑'}</span>
                         <span className="text-sm font-medium flex items-center gap-2">
-                          {isDead ? <span>💀 Flatlined</span> : <><span>Level {status}</span>{p.isBeingTreated && <span className="bg-blue-600 text-white text-[10px] px-2 py-1 rounded-full uppercase animate-pulse">In Surgery</span>}</>}
+                          {statusDisplay}
                         </span>
                       </li>
-                    )
+                    );
                 })}
               </ul>
             </div>
+
           </div>
         </div>
       )}
