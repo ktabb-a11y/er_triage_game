@@ -99,6 +99,18 @@ export default function PatientScreen({ socket, player }) {
         <p className="text-sm">Reward: {ailment.basePoints} pts</p>
       </div>
 
+      {/* --- NEW: Infection Warning --- */}
+        {player.currentAilment?.infected && (
+          <div className="mt-4 bg-purple-900/80 border-2 border-purple-500 text-purple-200 p-4 rounded-xl shadow-[0_0_15px_rgba(168,85,247,0.5)] animate-pulse w-full max-w-xs text-center mx-auto">
+            <h3 className="text-2xl font-black uppercase tracking-widest flex items-center justify-center gap-2">
+              <span>🦠</span> Infected!
+            </h3>
+            <p className="text-sm font-bold mt-1 text-purple-300">
+              Condition deteriorating rapidly!
+            </p>
+          </div>
+        )}
+
       {player.isBeingTreated && (
         <div className="absolute inset-0 bg-blue-900/95 flex flex-col items-center justify-center z-50">
           <h2 className="text-4xl font-bold animate-bounce text-center uppercase tracking-widest text-blue-300">In Surgery</h2>

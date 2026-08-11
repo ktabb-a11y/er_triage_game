@@ -446,11 +446,20 @@ export default function App() {
                       statusDisplay = (
                         <>
                           <span>Level {p.currentAilment.statusLevel}</span>
-                          {p.isBeingTreated && <span className="bg-blue-600 text-white text-[10px] px-2 py-1 rounded-full uppercase animate-pulse">In Surgery</span>}
+                          {/* --- NEW: Infected Badge --- */}
+                          {p.currentAilment.infected && (
+                            <span className="bg-purple-600 text-white text-[10px] px-2 py-1 rounded-full uppercase animate-pulse">
+                              🦠 Infected
+                            </span>
+                          )}
+                          {p.isBeingTreated && (
+                            <span className="bg-blue-600 text-white text-[10px] px-2 py-1 rounded-full uppercase animate-pulse">
+                              In Surgery
+                            </span>
+                          )}
                         </>
                       );
                     }
-
                     return (
                       <li key={p.id} className={`flex justify-between items-center p-3 rounded transition-colors duration-500 ${rowClass}`}>
                         <span className="font-bold">{p.name} {p.id === gameState.hostId && '👑'}</span>

@@ -58,8 +58,13 @@ const ailmentsDB = [
 
 function getRandomAilment() {
   const ailment = JSON.parse(JSON.stringify(ailmentsDB[Math.floor(Math.random() * ailmentsDB.length)])); 
-  // Generate random 4-digit code for manual entry
   ailment.manualCode = Math.floor(1000 + Math.random() * 9000).toString();
+  
+  ailment.initialStatusLevel = ailment.statusLevel;
+  ailment.untreatedTicks = 0;
+  ailment.infected = false;
+  ailment.infectionChance = 0.20;
+  
   return ailment;
 }
 
@@ -319,6 +324,25 @@ socket.on('assignRoles', () => {
 
       Object.values(game.state.players).forEach(player => {
         if (player.role === 'patient' && player.currentAilment && player.currentAilment.statusLevel > 0) {
+          
+          // --- NEW: INFECTION LOGIC ---
+          if (!player.isBeingTreated) {
+            player.currentAilment.untreatedTicks += 1;
+            
+            // Check if initial status was >= 10, not yet infected, and untreated for > 3 ticks
+            if (player.currentAilment.initialStatusLevel >= 10 && !player.currentAilment.infected && player.currentAilment.untreatedTicks > 3) {
+              
+              if (Math.random() < player.currentAilment.infectionChance) {
+                player.currentAilment.infected = true;
+                player.currentAilment.deteriorationChance += 0.3; // Make it much deadlier
+              } else {
+                player.currentAilment.infectionChance += 0.10; // Increase chance by 10% for next tick
+              }
+              stateChanged = true;
+            }
+          }
+
+          // --- EXISTING: Deterioration Logic ---
           if (Math.random() < player.currentAilment.deteriorationChance) {
             player.currentAilment.statusLevel -= 1;
             stateChanged = true;
